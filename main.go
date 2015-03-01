@@ -5,28 +5,28 @@
 package main
 
 import (
+	"encoding/binary"
 	"flag"
 	"fmt"
 	"log"
 	"net"
 	"runtime"
-	"unsafe"
 	gl   "github.com/go-gl/gl"
 	glfw "github.com/go-gl/glfw3"
 )
 
 const (
-	INFO          = "BitBanner Simulator v0.1"
-	MATRIX_X      = 150
-	MATRIX_Y      = 16
-	MAGNIFICATION = 12
+	INFO               = "BitBanner Simulator 2016 Xtreme Edition(tm) v0.1"
+	NET_TYPE_DATA byte = 0x01
+	NET_TYPE_SWAP byte = 0x02
 )
 
 func main() {
-	l   := flag.String("l",         ":54746",      "The TCP host and port for incoming connections")
-	x   := flag.Int("x",            MATRIX_X,      "The width of the matrix")
-	y   := flag.Int("y",            MATRIX_Y,      "The height of the matrix")
-	mag := flag.Int("magification", MAGNIFICATION, "The level of detail")
+	host := flag.String("host",      "0.0.0.0",     "The UDP bind address")
+	port := flag.Int("port",         8230,          "The UDP port")
+	x    := flag.Int("x",            150,           "The width of the matrix")
+	y    := flag.Int("y",            16,            "The height of the matrix")
+	mag  := flag.Int("magification", 12,            "Amount of pixels per dot")
 	flag.Parse()
 
 	banner := Banner{
@@ -34,18 +34,20 @@ func main() {
 		lenY: *y,
 		magnification: *mag,
 	}
-
-	go banner.RunServer(*l)
+	go banner.RunServer(&net.UDPAddr{
+		Port: *port,
+		IP:   net.ParseIP(*host),
+	})
 	banner.RunDisplay()
 }
 
 
 type Banner struct {
-	lenX              int
-	lenY              int
-	magnification     int
-	buffer           []float32
-	bufferStream     chan []float32
+	lenX          int
+	lenY          int
+	magnification int
+	buffer        []float32
+	bufferStream  chan []float32
 }
 
 func (banner *Banner) RunDisplay() error {
@@ -120,59 +122,52 @@ func (banner *Banner) NumPixels() int {
 }
 
 
-func (banner *Banner) RunServer(listen string) {
-	listener, err := net.Listen("tcp", listen)
+func (banner *Banner) RunServer(addr *net.UDPAddr) {
+	conn, err := net.ListenUDP("udp", addr)
 	if err != nil {
 		log.Fatal(err)
 	}
-	defer listener.Close()
+	defer conn.Close()
+
 	for {
-		conn, err := listener.Accept()
-		if err != nil {
-			log.Fatal(err)
-		}
-		go communicate(conn, banner)
-	}
-}
+		buf        := make([]byte,    banner.NumPixels() * 3 + 1+4+2)
+		backBuffer := make([]float32, banner.NumPixels() * 3)
 
-func communicate(conn net.Conn, banner *Banner) {
-	buf := make([]byte, banner.NumPixels() * 3)
-	var backBuffer []float32
-	main: for {
-		_, err := conn.Read(buf[:3])
-		if err != nil {
-			break
-		}
-		switch string(buf[:3]) {
-		case "ver":
-			conn.Write([]byte(INFO))
-
-		case "inf":
-			x := *(*[4]byte)(unsafe.Pointer(&banner.lenX))
-			conn.Write(x[:])
-			y := *(*[4]byte)(unsafe.Pointer(&banner.lenY))
-			conn.Write(y[:])
-			one := 1
-			z := *(*[4]byte)(unsafe.Pointer(&one))
-			conn.Write(z[:])
-			conn.Write([]byte{ 3 })
-			conn.Write([]byte{ 60 })
-
-		case "put":
-			backBuffer = make([]float32, banner.NumPixels() * 3)
-			for completed := 0; completed < banner.NumPixels()*3; {
-				read, err := conn.Read(buf[:banner.NumPixels()*3 - completed])
-				if err != nil {
-					break main
-				}
-				for i, b := range buf[:read] {
-					backBuffer[completed+i] = float32(b) / 256
-				}
-				completed += read
+		for {
+			read, addr, err := conn.ReadFromUDP(buf)
+			if err != nil {
+				fmt.Println(err)
+				break
 			}
 
-		case "swp":
-			banner.bufferStream <- backBuffer
+			switch buf[0] {
+			case NET_TYPE_SWAP:
+				banner.bufferStream <- backBuffer
+
+			case NET_TYPE_DATA:
+				if read < 1 + 4 + 2 {
+					fmt.Printf("%v error: missing meta information\n", addr)
+					continue
+				}
+
+				order := binary.LittleEndian
+				start  := int(order.Uint32(buf[1:5]))
+				length := int(order.Uint16(buf[5:7]))
+
+				if start > len(backBuffer) {
+					fmt.Printf("%v error: start index out of range: %v\n", addr, start)
+					continue
+				}
+				if start + length > len(backBuffer) || length == 0 {
+					fmt.Printf("%v error: length out of range: %v\n", addr, length)
+					continue
+				}
+
+				data := buf[7:7+length-1]
+				for i, b := range data {
+					backBuffer[start+i] = float32(b) / 256
+				}
+			}
 		}
 	}
 }
