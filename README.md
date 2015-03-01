@@ -49,4 +49,4 @@ Upon receiving a swap packet, the displaybuffers are swapped.
 
 | Start - End Index | Data       | Description |
 | ----------------- | ---------- | ----------- |
-| 0  - 3            | uint8=0x02 | Type        |
+| 0 - 0             | uint8=0x02 | Type        |
