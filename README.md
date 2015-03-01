@@ -11,7 +11,7 @@ On Debian (and maybe Ubuntu) systems, you can install all dependencies with this
 
 Finally, install and build bitbanner:
 ```sh
-	git clone REPO bitbanner
+	git clone https://github.com/bitlair/ledbanner-sim.git bitbanner
 	cd bitbanner
 	GOPATH=$PWD/gopath go get; go build
 ```
