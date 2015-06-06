@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2014 PolyFloyd
+ * Copyright (c) 2015, Bitlair
  */
 
 package main
@@ -16,7 +16,7 @@ import (
 )
 
 const (
-	INFO               = "BitBanner Simulator 2016 Xtreme Edition(tm) v0.1"
+	INFO               = "Bitlair LEDBanner Simulator"
 	NET_TYPE_DATA byte = 0x01
 	NET_TYPE_SWAP byte = 0x02
 )
@@ -120,7 +120,6 @@ func (banner *Banner) RunDisplay() error {
 func (banner *Banner) NumPixels() int {
 	return banner.lenX * banner.lenY
 }
-
 
 func (banner *Banner) RunServer(addr *net.UDPAddr) {
 	conn, err := net.ListenUDP("udp", addr)
