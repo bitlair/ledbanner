@@ -11,7 +11,7 @@ import (
 	"log"
 	"net"
 	"runtime"
-	gl   "github.com/go-gl/gl"
+	gl   "github.com/go-gl-legacy/gl"
 	glfw "github.com/go-gl/glfw3"
 )
 
