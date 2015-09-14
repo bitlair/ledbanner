@@ -1,4 +1,4 @@
-/*
+/**
  * Copyright (c) 2015, Bitlair
  */
 
@@ -8,11 +8,11 @@ import (
 	"encoding/binary"
 	"flag"
 	"fmt"
+	gl "github.com/go-gl-legacy/gl"
+	glfw "github.com/go-gl/glfw/v3.1/glfw"
 	"log"
 	"net"
 	"runtime"
-	gl   "github.com/go-gl-legacy/gl"
-	glfw "github.com/go-gl/glfw3"
 )
 
 const (
@@ -22,16 +22,16 @@ const (
 )
 
 func main() {
-	host := flag.String("host",      "0.0.0.0",     "The UDP bind address")
-	port := flag.Int("port",         8230,          "The UDP port")
-	x    := flag.Int("x",            150,           "The width of the matrix")
-	y    := flag.Int("y",            16,            "The height of the matrix")
-	mag  := flag.Int("magification", 12,            "Amount of pixels per dot")
+	host := flag.String("host", "0.0.0.0", "The UDP bind address")
+	port := flag.Int("port", 8230, "The UDP port")
+	x := flag.Int("x", 150, "The width of the matrix")
+	y := flag.Int("y", 16, "The height of the matrix")
+	mag := flag.Int("magification", 12, "Amount of pixels per dot")
 	flag.Parse()
 
 	banner := Banner{
-		lenX: *x,
-		lenY: *y,
+		lenX:          *x,
+		lenY:          *y,
 		magnification: *mag,
 	}
 	go banner.RunServer(&net.UDPAddr{
@@ -40,7 +40,6 @@ func main() {
 	})
 	banner.RunDisplay()
 }
-
 
 type Banner struct {
 	lenX          int
@@ -51,20 +50,17 @@ type Banner struct {
 }
 
 func (banner *Banner) RunDisplay() error {
-	banner.buffer = make([]float32, banner.NumPixels() * 3)
+	banner.buffer = make([]float32, banner.NumPixels()*3)
 	banner.bufferStream = make(chan []float32, 1)
 
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
 	runtime.GOMAXPROCS(runtime.NumCPU())
 
-	glfw.SetErrorCallback(func(code glfw.ErrorCode, desc string) {
-		fmt.Printf("GLFW Error: %v\n", desc)
-	})
-	if !glfw.Init() {
+	if err := glfw.Init(); err != nil {
 		return fmt.Errorf("Can't init GLFW!")
 	}
-	win, err := glfw.CreateWindow(banner.lenX * banner.magnification, banner.lenY * banner.magnification, INFO, nil, nil)
+	win, err := glfw.CreateWindow(banner.lenX*banner.magnification, banner.lenY*banner.magnification, INFO, nil, nil)
 	if err != nil {
 		return err
 	}
@@ -93,19 +89,19 @@ func (banner *Banner) RunDisplay() error {
 		gl.LoadIdentity()
 
 		select {
-		case banner.buffer = <- banner.bufferStream:
+		case banner.buffer = <-banner.bufferStream:
 		default:
 		}
 
 		for x := 0; x < banner.lenX; x++ {
 			for y := 0; y < banner.lenY; y++ {
 				gl.Begin(gl.QUADS)
-				i := (x * banner.lenY + y) * 3
+				i := (x*banner.lenY + y) * 3
 				gl.Color3f(banner.buffer[i], banner.buffer[i+1], banner.buffer[i+2])
-				gl.Vertex2i(x,   y)
+				gl.Vertex2i(x, y)
 				gl.Vertex2i(x+1, y)
 				gl.Vertex2i(x+1, y+1)
-				gl.Vertex2i(x,   y+1)
+				gl.Vertex2i(x, y+1)
 				gl.End()
 			}
 		}
@@ -129,8 +125,8 @@ func (banner *Banner) RunServer(addr *net.UDPAddr) {
 	defer conn.Close()
 
 	for {
-		buf        := make([]byte,    banner.NumPixels() * 3 + 1+4+2)
-		backBuffer := make([]float32, banner.NumPixels() * 3)
+		buf := make([]byte, banner.NumPixels()*3+1+4+2)
+		backBuffer := make([]float32, banner.NumPixels()*3)
 
 		for {
 			read, addr, err := conn.ReadFromUDP(buf)
@@ -144,25 +140,25 @@ func (banner *Banner) RunServer(addr *net.UDPAddr) {
 				banner.bufferStream <- backBuffer
 
 			case NET_TYPE_DATA:
-				if read < 1 + 4 + 2 {
+				if read < 1+4+2 {
 					fmt.Printf("%v error: missing meta information\n", addr)
 					continue
 				}
 
 				order := binary.LittleEndian
-				start  := int(order.Uint32(buf[1:5]))
+				start := int(order.Uint32(buf[1:5]))
 				length := int(order.Uint16(buf[5:7]))
 
 				if start > len(backBuffer) {
 					fmt.Printf("%v error: start index out of range: %v\n", addr, start)
 					continue
 				}
-				if start + length > len(backBuffer) || length == 0 {
+				if start+length > len(backBuffer) || length == 0 {
 					fmt.Printf("%v error: length out of range: %v\n", addr, length)
 					continue
 				}
 
-				data := buf[7:7+length-1]
+				data := buf[7 : 7+length-1]
 				for i, b := range data {
 					backBuffer[start+i] = float32(b) / 256
 				}
