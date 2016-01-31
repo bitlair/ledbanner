@@ -21,7 +21,16 @@ def read_image(filename):
 	return img
 
 led    = ledbanner.LEDBanner()
-images = [read_image(f) for f in sys.argv[1:]]
+images = []
+
+for f in sys.argv[1:]:
+	try:
+		images.append(read_image(f))
+	except:
+		pass
+if len(images) == 0:
+	print('Unable to read any of the specified images')
+	exit(1)
 
 while 1:
 	for image in images:
@@ -32,6 +41,8 @@ while 1:
 					scroll = y + i
 					if scroll >= 0 and scroll < image.size[1]:
 						pix = image.getpixel((x, scroll))
+						if type(pix) is int: # Monochrome
+							pix = [pix, pix, pix]
 						frame.set(x, y, (pix[0] / 255, pix[1] / 255, pix[2] / 255))
 
 			led.set_frame(frame)
