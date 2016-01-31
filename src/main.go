@@ -8,11 +8,12 @@ import (
 	"encoding/binary"
 	"flag"
 	"fmt"
-	gl "github.com/go-gl-legacy/gl"
-	glfw "github.com/go-gl/glfw/v3.1/glfw"
 	"log"
 	"net"
 	"runtime"
+
+	"github.com/go-gl/gl/v2.1/gl"
+	"github.com/go-gl/glfw/v3.1/glfw"
 )
 
 const (
@@ -26,13 +27,15 @@ func main() {
 	port := flag.Int("port", 8230, "The UDP port")
 	x := flag.Int("x", 150, "The width of the matrix")
 	y := flag.Int("y", 16, "The height of the matrix")
-	mag := flag.Int("magification", 12, "Amount of pixels per dot")
+	mag := flag.Int("magification", 12, "Amount of pixels per cell")
+	pixelSize := flag.Float64("pixelsize", 0.3, "The space per cell that will be lit")
 	flag.Parse()
 
 	banner := Banner{
 		lenX:          *x,
 		lenY:          *y,
 		magnification: *mag,
+		pixelSize:     *pixelSize,
 	}
 	go banner.RunServer(&net.UDPAddr{
 		Port: *port,
@@ -45,6 +48,7 @@ type Banner struct {
 	lenX          int
 	lenY          int
 	magnification int
+	pixelSize     float64
 	buffer        []float32
 	bufferStream  chan []float32
 }
@@ -67,24 +71,18 @@ func (banner *Banner) RunDisplay() error {
 	defer win.Destroy()
 	win.MakeContextCurrent()
 	glfw.SwapInterval(1)
-	if gl.Init() != gl.FALSE {
-		return fmt.Errorf("Could not initialize OpenGL")
+	if err := gl.Init(); err != nil {
+		return err
 	}
 
 	for !win.ShouldClose() {
 		gl.Clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT)
 		w, h := win.GetFramebufferSize()
-		gl.Viewport(0, 0, w, h)
+		cellSizeX, cellSizeY := float64(w)/float64(banner.lenX), float64(h)/float64(banner.lenY)
+		gl.Viewport(0, 0, int32(w), int32(h))
 		gl.MatrixMode(gl.PROJECTION)
 		gl.LoadIdentity()
-		gl.Ortho(
-			0,
-			float64(banner.lenX),
-			float64(banner.lenY),
-			0,
-			-1,
-			1,
-		)
+		gl.Ortho(cellSizeX/2, float64(w)-cellSizeX/2, float64(h)-cellSizeY/2, cellSizeX/2, -1, 1)
 		gl.MatrixMode(gl.MODELVIEW)
 		gl.LoadIdentity()
 
@@ -93,15 +91,19 @@ func (banner *Banner) RunDisplay() error {
 		default:
 		}
 
+		pixelSize := banner.pixelSize * cellSizeX
 		for x := 0; x < banner.lenX; x++ {
 			for y := 0; y < banner.lenY; y++ {
-				gl.Begin(gl.QUADS)
 				i := (x*banner.lenY + y) * 3
 				gl.Color3f(banner.buffer[i], banner.buffer[i+1], banner.buffer[i+2])
-				gl.Vertex2i(x, y)
-				gl.Vertex2i(x+1, y)
-				gl.Vertex2i(x+1, y+1)
-				gl.Vertex2i(x, y+1)
+
+				rx := float64(x) * cellSizeX
+				ry := float64(y) * cellSizeY
+				gl.Begin(gl.QUADS)
+				gl.Vertex2d(rx-pixelSize/2, ry-pixelSize/2)
+				gl.Vertex2d(rx+pixelSize/2, ry-pixelSize/2)
+				gl.Vertex2d(rx+pixelSize/2, ry+pixelSize/2)
+				gl.Vertex2d(rx-pixelSize/2, ry+pixelSize/2)
 				gl.End()
 			}
 		}
