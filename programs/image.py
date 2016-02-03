@@ -17,7 +17,7 @@ if len(sys.argv) == 1:
 
 def read_image(filename):
 	img = Image.open(filename)
-	img.thumbnail((led.size[0], float('inf')))
+	img.thumbnail((led.size.x, float('inf')))
 	return img
 
 led    = ledbanner.LEDBanner()
@@ -25,7 +25,17 @@ images = []
 
 for f in sys.argv[1:]:
 	try:
-		images.append(read_image(f))
+		image = read_image(f)
+		image_size = ledbanner.Vector(image.size[0], image.size[1])
+		raw = bytearray(image_size.x * image_size.y * led.bytes_per_pixel)
+		for x in range(0, image_size.x):
+			for y in range(0, image_size.y):
+				pix = image.getpixel((x, y))
+				if type(pix) is int: # Monochrome
+					pix = (pix, pix, pix)
+				i = (y * led.size.x + x) * led.bytes_per_pixel
+				raw[i:i+3] = pix
+		images.append((raw, image_size))
 	except:
 		pass
 if len(images) == 0:
@@ -33,17 +43,26 @@ if len(images) == 0:
 	exit(1)
 
 while 1:
-	for image in images:
-		for i in range(-led.size.y, image.size[1]):
+	for image, image_size in images:
+		for scroll in range(led.size.y, -image_size.y, -1):
 			frame = led.make_frame()
-			for x in range(0, led.size.x):
-				for y in range(0, led.size.y):
-					scroll = y + i
-					if scroll >= 0 and scroll < image.size[1]:
-						pix = image.getpixel((x, scroll))
-						if type(pix) is int: # Monochrome
-							pix = [pix, pix, pix]
-						frame.set(x, y, (pix[0] / 255, pix[1] / 255, pix[2] / 255))
+
+			frame_start_y = scroll
+			if frame_start_y < 0:
+				frame_start_y = 0
+			frame_stop_y  = scroll + image_size.y
+			if frame_stop_y > led.size.y:
+				frame_stop_y = led.size.y
+			image_start_y = -scroll
+			if image_start_y < 0:
+				image_start_y = 0
+			image_stop_y = image_start_y + frame_stop_y - frame_start_y
+			if image_stop_y > image_size.y:
+				image_stop_y = image_size.y
+
+			bytes_per_y = led.size.x * led.bytes_per_pixel
+			frame[frame_start_y * bytes_per_y:frame_stop_y * bytes_per_y] = \
+				image[image_start_y*bytes_per_y:image_stop_y*bytes_per_y]
 
 			led.set_frame(frame)
 			time.sleep(1 / led.fps)
