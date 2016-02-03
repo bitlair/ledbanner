@@ -49,13 +49,13 @@ type Banner struct {
 	lenY          int
 	magnification int
 	pixelSize     float64
-	buffer        []float32
-	bufferStream  chan []float32
+	buffer        []uint8
+	bufferStream  chan []uint8
 }
 
 func (banner *Banner) RunDisplay() error {
-	banner.buffer = make([]float32, banner.NumPixels()*3)
-	banner.bufferStream = make(chan []float32, 1)
+	banner.buffer = make([]uint8, banner.NumPixels()*3)
+	banner.bufferStream = make(chan []uint8, 1)
 
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -82,7 +82,7 @@ func (banner *Banner) RunDisplay() error {
 		gl.Viewport(0, 0, int32(w), int32(h))
 		gl.MatrixMode(gl.PROJECTION)
 		gl.LoadIdentity()
-		gl.Ortho(cellSizeX/2, float64(w)-cellSizeX/2, float64(h)-cellSizeY/2, cellSizeX/2, -1, 1)
+		gl.Ortho(-cellSizeX/2, float64(w)-cellSizeX/2, float64(h)-cellSizeY/2, -cellSizeY/2, -1, 1)
 		gl.MatrixMode(gl.MODELVIEW)
 		gl.LoadIdentity()
 
@@ -94,8 +94,8 @@ func (banner *Banner) RunDisplay() error {
 		pixelSize := banner.pixelSize * cellSizeX
 		for x := 0; x < banner.lenX; x++ {
 			for y := 0; y < banner.lenY; y++ {
-				i := (x*banner.lenY + y) * 3
-				gl.Color3f(banner.buffer[i], banner.buffer[i+1], banner.buffer[i+2])
+				i := (y*banner.lenX + x) * 3
+				gl.Color3ub(banner.buffer[i], banner.buffer[i+1], banner.buffer[i+2])
 
 				rx := float64(x) * cellSizeX
 				ry := float64(y) * cellSizeY
@@ -127,8 +127,8 @@ func (banner *Banner) RunServer(addr *net.UDPAddr) {
 	defer conn.Close()
 
 	for {
-		buf := make([]byte, banner.NumPixels()*3+1+4+2)
-		backBuffer := make([]float32, banner.NumPixels()*3)
+		buf := make([]uint8, banner.NumPixels()*3+1+4+2)
+		backBuffer := make([]uint8, banner.NumPixels()*3)
 
 		for {
 			read, addr, err := conn.ReadFromUDP(buf)
@@ -160,10 +160,7 @@ func (banner *Banner) RunServer(addr *net.UDPAddr) {
 					continue
 				}
 
-				data := buf[7 : 7+length-1]
-				for i, b := range data {
-					backBuffer[start+i] = float32(b) / 256
-				}
+				copy(backBuffer[start:], buf[7:7+length])
 			}
 		}
 	}

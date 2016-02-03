@@ -69,7 +69,7 @@ class Frame(bytearray):
 	def index(self, x, y):
 		x, y = int(x), int(y)
 		if 0 <= x < self.size.x and 0 <= y < self.size.y:
-			return (x * self.size.y + y) * self.bytes_per_pixel
+			return (y * self.size.x + x) * self.bytes_per_pixel
 		return -1
 
 	def get(self, x, y):
@@ -78,10 +78,10 @@ class Frame(bytearray):
 			raise IndexError("(%s, %s) is outside screenspace" % (x, y))
 		return (self[i] / 255, self[i + 1] / 255, self[i + 2] / 255)
 
-	def set(self, x, y, voxel, clip=True):
+	def set(self, x, y, pixel, clip=True):
 		i = self.index(x, y)
 		if i != -1:
 			for j in range(0, self.bytes_per_pixel):
-				self[i + j] = int(voxel[j] * 255)
+				self[i + j] = int(pixel[j] * 255)
 		elif not clip:
 			raise IndexError("(%s, %s) is outside screenspace" % (x, y))
