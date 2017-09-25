@@ -1,0 +1,3 @@
+[submodule "programs/nyan"]
+	path = programs/nyan
+	url = https://github.com/polyfloyd/ledcat-nyancat.git
