@@ -62,6 +62,10 @@ func (banner *Banner) RunDisplay() error {
 		gl.Clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT)
 		w, h := win.GetFramebufferSize()
 		cellSizeX, cellSizeY := float64(w)/float64(banner.lenX), float64(h)/float64(banner.lenY)
+		cellSizeMin := cellSizeX
+		if cellSizeY < cellSizeX {
+			cellSizeMin = cellSizeY
+		}
 		gl.Viewport(0, 0, int32(w), int32(h))
 		gl.MatrixMode(gl.PROJECTION)
 		gl.LoadIdentity()
@@ -80,8 +84,8 @@ func (banner *Banner) RunDisplay() error {
 				i := (y*banner.lenX + x) * 3
 				gl.Color3ub(banner.buffer[i], banner.buffer[i+1], banner.buffer[i+2])
 
-				rx := float64(x) * cellSizeX
-				ry := float64(y) * cellSizeY
+				rx := float64(x) * cellSizeMin
+				ry := float64(y) * cellSizeMin
 				gl.Begin(gl.QUADS)
 				gl.Vertex2d(rx-pixelSize/2, ry-pixelSize/2)
 				gl.Vertex2d(rx+pixelSize/2, ry-pixelSize/2)
